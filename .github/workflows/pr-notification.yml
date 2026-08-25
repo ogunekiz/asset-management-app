@@ -1,0 +1,31 @@
+name: PR Code Review Notification
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  notify-reviewer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Mail Notification
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[CODE REVIEW BEKLEYEN PR] ${{ github.event.pull_request.title }}"
+          to: ogunekiz@gmail.com
+          from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Merhaba Yetkili,
+            
+            Yeni bir Pull Request incelemenizi bekliyor.
+            
+            PR Başlığı: ${{ github.event.pull_request.title }}
+            Açan Kişi: ${{ github.actor }}
+            PR Bağlantısı: ${{ github.event.pull_request.html_url }}
+            
+            Lütfen inceleyip onaylayınız.

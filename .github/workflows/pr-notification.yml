@@ -1,14 +1,16 @@
-name: PR Code Review Notification
+name: PR & Code Review Mail Notifications
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, closed]
 
 jobs:
-  notify-reviewer:
+  notify-pr-events:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Mail Notification
+      # 1. SENARYO: PR İnceleme Bekliyor (Reviewer'a Mail Gönderilir)
+      - name: Send Mail - PR Opened / Review Requested
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
         uses: dawidd6/action-send-mail@v4
         with:
           server_address: smtp.gmail.com
@@ -17,7 +19,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "[CODE REVIEW BEKLEYEN PR] ${{ github.event.pull_request.title }}"
-          to: ogunekiz@gmail.com
+          to: ogunekiz@gmail.com # Reviewer Mail Adresi
           from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
           body: |
             Merhaba Yetkili,
@@ -25,7 +27,58 @@ jobs:
             Yeni bir Pull Request incelemenizi bekliyor.
             
             PR Başlığı: ${{ github.event.pull_request.title }}
-            Açan Kişi: ${{ github.actor }}
+            Açan Geliştirici: ${{ github.actor }}
+            Kaynak Dal: ${{ github.event.pull_request.head.ref }}
+            Hedef Dal: ${{ github.event.pull_request.base.ref }}
             PR Bağlantısı: ${{ github.event.pull_request.html_url }}
             
-            Lütfen inceleyip onaylayınız.
+            Lütfen inceleyip onaylayınız veya revize isteyiniz.
+
+      # 2. SENARYO: PR Kabul Edildi / Merge Edildi (Geliştiriciye Mail Gönderilir)
+      - name: Send Mail - PR Merged
+        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[PR MERGE EDİLDİ ✅] ${{ github.event.pull_request.title }}"
+          to: ${{ github.event.pull_request.user.email }} # Geliştiricinin Mail Adresi
+          from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Merhaba ${{ github.event.pull_request.user.login }},
+            
+            Tebrikler! Açmış olduğunuz Pull Request yetkili tarafından incelendi ve kabul edildi.
+            
+            PR Başlığı: ${{ github.event.pull_request.title }}
+            Merge Edilen Dal: ${{ github.event.pull_request.base.ref }}
+            Onaylayan / Merge Eden: ${{ github.actor }}
+            PR Bağlantısı: ${{ github.event.pull_request.html_url }}
+            
+            Kodunuz test ve CI/CD süreçlerine aktarılıyor.
+
+      # 3. SENARYO: PR Reddedildi / Kapatıldı (Geliştiriciye Mail Gönderilir)
+      - name: Send Mail - PR Rejected / Closed
+        if: github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[PR REDDEDİLDİ ❌] ${{ github.event.pull_request.title }}"
+          to: ${{ github.event.pull_request.user.email }} # Geliştiricinin Mail Adresi
+          from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            Merhaba ${{ github.event.pull_request.user.login }},
+            
+            Açmış olduğunuz Pull Request kabul edilmedi ve kapatıldı.
+            
+            PR Başlığı: ${{ github.event.pull_request.title }}
+            Kapatan / Reddeden: ${{ github.actor }}
+            PR Bağlantısı: ${{ github.event.pull_request.html_url }}
+            
+            Lütfen PR üzerindeki yorumları inceleyerek gerekli düzenlemeleri yapınız ve yeni bir PR açınız.

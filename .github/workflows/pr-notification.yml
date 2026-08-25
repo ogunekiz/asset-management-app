@@ -8,20 +8,21 @@ jobs:
   notify-pr-events:
     runs-on: ubuntu-latest
     steps:
-      # 1. ADIM: Dinamik Alıcı E-posta Adresinin Belirlenmesi
-      - name: Determine Recipient Email
-        id: get_email
+      # 1. ADIM: PR'ı Açan Geliştiricinin Mail Adresini Dinamik Elde Etme
+      - name: Extract Developer Email
+        id: dev_email
         run: |
-          PR_USER_EMAIL="${{ github.event.pull_request.user.email }}"
-          # Eğer PR sahibinin e-postası boşsa, varsayılan bir kurumsal adrese yönlendir
-          if [ -z "$PR_USER_EMAIL" ] || [ "$PR_USER_EMAIL" == "null" ]; then
-            RECIPIENT="${{ secrets.MAIL_USERNAME }}"
-          else
-            RECIPIENT="$PR_USER_EMAIL"
+          # 1. Tercih: PR sahibinin profil maili
+          PR_EMAIL="${{ github.event.pull_request.user.email }}"
+          
+          # 2. Tercih: Eğer gizli/boş ise varsayılan Secret mailini yedek olarak kullan
+          if [ -z "$PR_EMAIL" ] || [ "$PR_EMAIL" == "null" ]; then
+            PR_EMAIL="${{ secrets.MAIL_USERNAME }}"
           fi
-          echo "RECIPIENT_EMAIL=$RECIPIENT" >> $GITHUB_OUTPUT
+          
+          echo "PR_AUTHOR_EMAIL=$PR_EMAIL" >> $GITHUB_OUTPUT
 
-      # 2. SENARYO: PR İnceleme Bekliyor (Reviewer'a Mail)
+      # 2. SENARYO: PR İnceleme Bekliyor -> REVIEWER_EMAIL adresine Mail Gönderilir
       - name: Send Mail - PR Opened / Review Requested
         if: github.event.action == 'opened' || github.event.action == 'reopened'
         uses: dawidd6/action-send-mail@v4
@@ -32,7 +33,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "[CODE REVIEW BEKLEYEN PR] ${{ github.event.pull_request.title }}"
-          to: ${{ secrets.MAIL_USERNAME }} # Yetkili Reviewer Adresi
+          to: ${{ secrets.REVIEWER_EMAIL }}
           from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
           body: |
             Merhaba Yetkili,
@@ -47,7 +48,7 @@ jobs:
             
             Lütfen inceleyip onaylayınız veya revize isteyiniz.
 
-      # 3. SENARYO: PR Kabul Edildi / Merge Edildi (Geliştiriciye Mail)
+      # 3. SENARYO: PR Kabul Edildi / Merge Edildi -> PR'ı Açan Geliştiriciye Mail Gönderilir
       - name: Send Mail - PR Merged
         if: github.event.action == 'closed' && github.event.pull_request.merged == true
         uses: dawidd6/action-send-mail@v4
@@ -58,7 +59,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "[PR MERGE EDİLDİ ✅] ${{ github.event.pull_request.title }}"
-          to: ${{ steps.get_email.outputs.RECIPIENT_EMAIL }}
+          to: ${{ steps.dev_email.outputs.PR_AUTHOR_EMAIL }}
           from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
           body: |
             Merhaba ${{ github.event.pull_request.user.login }},
@@ -72,7 +73,7 @@ jobs:
             
             Kodunuz test ve CI/CD süreçlerine aktarılıyor.
 
-      # 4. SENARYO: PR Reddedildi / Kapatıldı (Geliştiriciye Mail)
+      # 4. SENARYO: PR Reddedildi / Kapatıldı -> PR'ı Açan Geliştiriciye Mail Gönderilir
       - name: Send Mail - PR Rejected / Closed
         if: github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: dawidd6/action-send-mail@v4
@@ -83,7 +84,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: "[PR REDDEDİLDİ ❌] ${{ github.event.pull_request.title }}"
-          to: ${{ steps.get_email.outputs.RECIPIENT_EMAIL }}
+          to: ${{ steps.dev_email.outputs.PR_AUTHOR_EMAIL }}
           from: DevSecOps Bot <${{ secrets.MAIL_USERNAME }}>
           body: |
             Merhaba ${{ github.event.pull_request.user.login }},
@@ -94,4 +95,4 @@ jobs:
             Kapatan / Reddeden: ${{ github.actor }}
             PR Bağlantısı: ${{ github.event.pull_request.html_url }}
             
-            Lütfen PR üzerindeki yorumları inceleyerek gerekli düzenlemeleri yapınız ve yeni bir PR açınız
+            Lütfen PR üzerindeki yorumları inceleyerek gerekli düzenlemeleri yapınız ve yeni bir PR açınız.

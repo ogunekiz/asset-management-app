@@ -24,6 +24,7 @@ pipeline {
                     sh '''
                         docker run --rm \
                           --network devsecops-net \
+                          --env SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
                           -v "$(pwd):/app" \
                           -w /app \
                           mcr.microsoft.com/dotnet/sdk:9.0 bash -c '
@@ -34,11 +35,11 @@ pipeline {
                             dotnet-sonarscanner begin \
                               /k:"AssetManagementApp" \
                               /d:sonar.host.url="http://sonarqube:9000" \
-                              /d:sonar.token="$SONAR_AUTH_TOKEN"
+                              /d:sonar.token="$SONAR_TOKEN"
                             
                             dotnet build --configuration Release
                             
-                            dotnet-sonarscanner end /d:sonar.token="$SONAR_AUTH_TOKEN"
+                            dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
                           '
                     '''
                 }

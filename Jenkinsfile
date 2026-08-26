@@ -29,8 +29,14 @@ pipeline {
                           mcr.microsoft.com/dotnet/sdk:9.0 sh -c "
                             dotnet tool install --global dotnet-sonarscanner
                             export PATH=\\$PATH:/root/.dotnet/tools
+                            
                             dotnet-sonarscanner begin /k:\\"AssetManagementApp\\" /d:sonar.host.url=\\"http://sonarqube:9000\\" /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
-                            dotnet build --configuration Release
+                            
+                            # Dizinde sln veya csproj dosyasını bularak derliyoruz
+                            SLN_FILE=\\$(find . -maxdepth 2 -name '*.sln' -o -name '*.csproj' | head -n 1)
+                            echo \\"Bulunan proje dosyasi: \\$SLN_FILE\\"
+                            dotnet build \\$SLN_FILE --configuration Release
+                            
                             dotnet-sonarscanner end /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
                           "
                     '''

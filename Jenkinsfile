@@ -22,18 +22,22 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        # 1. Konteyniri baslat
+                        # 1. SDK Konteynirini Baslat
                         CONTAINER_ID=$(docker run -d \
                           --network devsecops-net \
                           --env SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
                           mcr.microsoft.com/dotnet/sdk:9.0 sleep 300)
 
-                        # 2. Kodlari Jenkins workspace'inden doğrudan konteynir icine kopyala (Docker-in-Docker Cozumu)
+                        # 2. Kodlari Konteynire Kopyala
                         docker cp . "${CONTAINER_ID}:/app"
 
-                        # 3. Analiz ve Derlemeyi Konteynir Icinde Calistir
+                        # 3. Java Kurulumu, Derleme ve SonarQube Analizi
                         docker exec -w /app "${CONTAINER_ID}" bash -c '
                             set -e
+                            
+                            # Java (JRE 17) Kurulumu (SonarScanner post-processing icin gerekli)
+                            apt-get update -y && apt-get install -y openjdk-17-jre-headless
+                            
                             dotnet tool install --global dotnet-sonarscanner || true
                             export PATH="$PATH:/root/.dotnet/tools"
 
@@ -59,7 +63,7 @@ pipeline {
                             dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
                         '
 
-                        # 4. Konteyniri Temizle
+                        # 4. Temizlik
                         docker rm -f "${CONTAINER_ID}"
                     '''
                 }

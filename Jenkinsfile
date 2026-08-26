@@ -32,24 +32,30 @@ pipeline {
                             dotnet tool install --global dotnet-sonarscanner || true
                             export PATH="$PATH:/root/.dotnet/tools"
                             
-                            # Parantez gruplaması ve derinlik sınırı olmadan tam arama
-                            TARGET=$(find . \\( -name "*.sln" -o -name "*.csproj" \\) -not -path "*/obj/*" -not -path "*/bin/*" | head -n 1)
+                            # Workspace icindeki .sln/.csproj barindiran klasoru tespit edip icine giriyoruz
+                            PROJ_PATH=$(find /app -name "*.sln" -o -name "*.csproj" | head -n 1)
                             
-                            if [ -z "$TARGET" ]; then
-                                echo "HATA: Proje dosyası (.sln/.csproj) bulunamadı!"
-                                echo "Mevcut dizin içeriği:"
-                                ls -la
+                            if [ -z "$PROJ_PATH" ]; then
+                                echo "HATA: Workspace icinde hiçbir .sln veya .csproj bulunamadi!"
+                                echo "Workspace tum dosya yapisi:"
+                                find /app -maxdepth 3
                                 exit 1
                             fi
                             
-                            echo "Bulunan Proje Dosyası: $TARGET"
+                            PROJ_DIR=$(dirname "$PROJ_PATH")
+                            PROJ_FILE=$(basename "$PROJ_PATH")
+                            
+                            echo "Proje konumu tespit edildi: $PROJ_DIR"
+                            echo "Proje dosyasi: $PROJ_FILE"
+                            
+                            cd "$PROJ_DIR"
                             
                             dotnet-sonarscanner begin \
                               /k:"AssetManagementApp" \
                               /d:sonar.host.url="http://sonarqube:9000" \
                               /d:sonar.token="$SONAR_TOKEN"
                             
-                            dotnet build "$TARGET" --configuration Release
+                            dotnet build "$PROJ_FILE" --configuration Release
                             
                             dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
                           '

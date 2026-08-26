@@ -30,13 +30,23 @@ pipeline {
                             dotnet tool install --global dotnet-sonarscanner
                             export PATH=\\$PATH:/root/.dotnet/tools
                             
+                            # Proje veya solution dosyasının yerini derinlemesine buluyoruz
+                            TARGET_FILE=\\$(find . -name '*.sln' -o -name '*.csproj' | head -n 1)
+                            
+                            if [ -z \\"\$TARGET_FILE\\" ]; then
+                                echo \\"HATA: Repoda .sln veya .csproj dosyasi bulunamadi!\\"
+                                exit 1
+                            fi
+
+                            TARGET_DIR=\\$(dirname \\"\$TARGET_FILE\\")
+                            FILE_NAME=\\$(basename \\"\$TARGET_FILE\\")
+                            
+                            echo \\"Bulunan Proje Dosyasi: \$FILE_NAME (Dizin: \$TARGET_DIR)\\"
+                            
+                            cd \\"\$TARGET_DIR\\"
+                            
                             dotnet-sonarscanner begin /k:\\"AssetManagementApp\\" /d:sonar.host.url=\\"http://sonarqube:9000\\" /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
-                            
-                            # Dizinde sln veya csproj dosyasını bularak derliyoruz
-                            SLN_FILE=\\$(find . -maxdepth 2 -name '*.sln' -o -name '*.csproj' | head -n 1)
-                            echo \\"Bulunan proje dosyasi: \\$SLN_FILE\\"
-                            dotnet build \\$SLN_FILE --configuration Release
-                            
+                            dotnet build \\"\$FILE_NAME\\" --configuration Release
                             dotnet-sonarscanner end /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
                           "
                     '''

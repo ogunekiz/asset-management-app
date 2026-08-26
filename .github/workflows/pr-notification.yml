@@ -96,3 +96,5 @@ jobs:
             PR Bağlantısı: ${{ github.event.pull_request.html_url }}
             
             Lütfen PR üzerindeki yorumları inceleyerek gerekli düzenlemeleri yapınız ve yeni bir PR açınız.
+
+        # bu satır testtir

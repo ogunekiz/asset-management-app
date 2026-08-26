@@ -13,7 +13,7 @@ pipeline {
             steps {
                 echo 'Semgrep SAST güvenlik taraması başlatılıyor...'
                 sh '''
-                    docker run --rm -v "$(pwd):/src" returntocorp/semgrep semgrep scan --config=auto /src || true
+                    docker run --rm -v "${WORKSPACE}:/src" returntocorp/semgrep semgrep scan --config=auto /src || true
                 '''
             }
         }
@@ -22,43 +22,45 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        docker run --rm \
+                        # 1. Konteyniri baslat
+                        CONTAINER_ID=$(docker run -d \
                           --network devsecops-net \
                           --env SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
-                          -v "$(pwd):/app" \
-                          -w /app \
-                          mcr.microsoft.com/dotnet/sdk:9.0 bash -c '
+                          mcr.microsoft.com/dotnet/sdk:9.0 sleep 300)
+
+                        # 2. Kodlari Jenkins workspace'inden doğrudan konteynir icine kopyala (Docker-in-Docker Cozumu)
+                        docker cp . "${CONTAINER_ID}:/app"
+
+                        # 3. Analiz ve Derlemeyi Konteynir Icinde Calistir
+                        docker exec -w /app "${CONTAINER_ID}" bash -c '
                             set -e
                             dotnet tool install --global dotnet-sonarscanner || true
                             export PATH="$PATH:/root/.dotnet/tools"
-                            
-                            # Workspace icindeki .sln/.csproj barindiran klasoru tespit edip icine giriyoruz
-                            PROJ_PATH=$(find /app -name "*.sln" -o -name "*.csproj" | head -n 1)
-                            
-                            if [ -z "$PROJ_PATH" ]; then
-                                echo "HATA: Workspace icinde hiçbir .sln veya .csproj bulunamadi!"
-                                echo "Workspace tum dosya yapisi:"
-                                find /app -maxdepth 3
+
+                            TARGET=$(find . \\( -name "*.sln" -o -name "*.csproj" \\) -not -path "*/obj/*" -not -path "*/bin/*" | head -n 1)
+
+                            if [ -z "$TARGET" ]; then
+                                echo "HATA: Proje dosyasi bulunamadi!"
                                 exit 1
                             fi
-                            
-                            PROJ_DIR=$(dirname "$PROJ_PATH")
-                            PROJ_FILE=$(basename "$PROJ_PATH")
-                            
-                            echo "Proje konumu tespit edildi: $PROJ_DIR"
-                            echo "Proje dosyasi: $PROJ_FILE"
-                            
-                            cd "$PROJ_DIR"
-                            
+
+                            TARGET_DIR=$(dirname "$TARGET")
+                            TARGET_FILE=$(basename "$TARGET")
+
+                            cd "$TARGET_DIR"
+
                             dotnet-sonarscanner begin \
                               /k:"AssetManagementApp" \
                               /d:sonar.host.url="http://sonarqube:9000" \
                               /d:sonar.token="$SONAR_TOKEN"
-                            
-                            dotnet build "$PROJ_FILE" --configuration Release
-                            
+
+                            dotnet build "$TARGET_FILE" --configuration Release
+
                             dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
-                          '
+                        '
+
+                        # 4. Konteyniri Temizle
+                        docker rm -f "${CONTAINER_ID}"
                     '''
                 }
             }
@@ -80,7 +82,7 @@ pipeline {
             echo 'Pipeline aşaması tamamlandı.'
         }
         failure {
-            echo 'Pipeline hata aldı! SonarQube veya SAST taraması başarısız.'
+            echo 'Pipeline hata aldı!'
         }
     }
 }

@@ -12,9 +12,8 @@ pipeline {
         stage('SAST - Semgrep Güvenlik Taraması') {
             steps {
                 echo 'Semgrep SAST güvenlik taraması başlatılıyor...'
-                // --target . parametresi ile dizindeki tüm dosyalar git kontrolü olmaksızın taranır
                 sh '''
-                    docker run --rm -v "$(pwd):/src" returntocorp/semgrep semgrep scan --config=auto --target /src || true
+                    docker run --rm -v "$(pwd):/src" returntocorp/semgrep semgrep scan --config=auto /src || true
                 '''
             }
         }
@@ -23,17 +22,17 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        dotnet tool install --global dotnet-sonarscanner || true
-                        export PATH="$PATH:$HOME/.dotnet/tools"
-                        
-                        dotnet-sonarscanner begin \
-                          /k:"AssetManagementApp" \
-                          /d:sonar.host.url="http://sonarqube:9000" \
-                          /d:sonar.token="$SONAR_AUTH_TOKEN"
-                        
-                        dotnet build AssetManagementApp.sln --configuration Release
-                        
-                        dotnet-sonarscanner end /d:sonar.token="$SONAR_AUTH_TOKEN"
+                        docker run --rm \
+                          --network devsecops-net \
+                          -v "$(pwd):/app" \
+                          -w /app \
+                          mcr.microsoft.com/dotnet/sdk:9.0 sh -c "
+                            dotnet tool install --global dotnet-sonarscanner
+                            export PATH=\\$PATH:/root/.dotnet/tools
+                            dotnet-sonarscanner begin /k:\\"AssetManagementApp\\" /d:sonar.host.url=\\"http://sonarqube:9000\\" /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
+                            dotnet build --configuration Release
+                            dotnet-sonarscanner end /d:sonar.token=\\"$SONAR_AUTH_TOKEN\\"
+                          "
                     '''
                 }
             }
